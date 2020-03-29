@@ -1,0 +1,8 @@
+Package: del-files
+Version: 3.0
+Architecture: all
+Essential: no
+Priority: optional
+Depends: rsync
+Maintainer: Ilan Shavit
+Description: Perform multiple file deletion according to json config file 
