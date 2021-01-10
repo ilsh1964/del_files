@@ -1,9 +1,9 @@
-#!/usr/bin/env python2
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python3
+# pylint: disable=R0914,W0612
 """
    delFiles - Delete log files(support several deletion method)
 
-   Version: 3.0 (2020-03-29)
+   Version: 3.2 - 2021-01-10
    Dev: Shavit Ilan (ilan.shavit@gmail.com)
 """
 
@@ -12,6 +12,7 @@ import glob
 from datetime import date
 import os
 import json
+import sys
 
 
 def del_file_timestamp(base_dir, files_template, keep_files, \
@@ -21,39 +22,35 @@ def del_file_timestamp(base_dir, files_template, keep_files, \
     """
     all_dir = [base_dir]
     if recursive_mode == "Y":
-        all_dir.append([name for name in os.listdir(base_dir) \
-            if os.path.isdir(os.path.join(base_dir, name))])
-    else:
-        all_dir.append([])
-    all_dir[1].append('.')
+        for dirpath, dirs, files in os.walk(base_dir):
+            all_dir.append(dirpath)
 
-    for each_dir in all_dir[1]:
-        os.chdir(base_dir)
+    for each_dir in all_dir:
         os.chdir(each_dir)
         files_list = glob.glob(files_template)
         files_list = sorted(files_list)
         num_files = len(files_list)
 
         if (num_files - keep_files) <= 0:
-            log_message = "%s/%s: No files to delete..." % (base_dir, each_dir)
+            log_message = "%s: No files to delete..." % each_dir
             if simulation_mode == 'Y':
-                print log_message
+                print(log_message)
             else:
                 logging.info(log_message)
 
 
         for temp_i in range(num_files - int(keep_files)):
-            log_message = "%s/%s/%s" % (base_dir, each_dir, files_list[temp_i])
+            log_message = "%s : %s" % (each_dir, files_list[temp_i])
             if simulation_mode == 'Y':
-                print log_message + " - Going to delete..."
+                print(log_message + " - Candidate file for deletion...")
             else:
                 try:
                     os.remove(files_list[temp_i])
                     log_msg = log_message + " - Deleted!"
                     logging.info(log_msg)
                 except OSError:
-                    log_message = "%s/%s/%s - OSError exception raised !!!" %\
-                            (base_dir, each_dir, files_list[temp_i])
+                    log_message = "%s: %s - OSError exception raised !!!" %\
+                            (each_dir, files_list[temp_i])
                     logging.error(log_message)
 
 
@@ -64,15 +61,11 @@ def del_file_creation(base_dir, files_template, keep_days, simulation_mode, \
     """
     all_dir = [base_dir]
     if recursive_mode == "Y":
-        all_dir.append([name for name in os.listdir(base_dir) \
-            if os.path.isdir(os.path.join(base_dir, name))])
-    else:
-        all_dir.append([])
-    all_dir[1].append('.')
+        for dirpath, dirs, files in os.walk(base_dir):
+            all_dir.append(dirpath)
 
     current_date = date.today()
-    for each_dir in all_dir[1]:
-        os.chdir(base_dir)
+    for each_dir in all_dir:
         os.chdir(each_dir)
         files = glob.glob(files_template)
         need_delete = False
@@ -83,31 +76,25 @@ def del_file_creation(base_dir, files_template, keep_days, simulation_mode, \
                 days_diff = (current_date - the_file_ts).days
                 if days_diff > keep_days:
                     need_delete = True
-                    log_message = "%s/%s/%s" % (base_dir, each_dir, each_file)
+                    log_message = "%s: %s" % (each_dir, each_file)
                     if simulation_mode == 'Y':
-                        print log_message + " - Going to delete..."
+                        print(log_message + " - Candidate file for deletion...")
                     else:
                         os.remove(each_file)
                         log_msg = log_message + " - Deleted!"
                         logging.info(log_msg)
             except OSError:
-                log_message = "%s/%s/%s -  OSError Excepion Raised !!!" %\
-                        (base_dir, each_dir, each_file)
+                log_message = "%s: %s -  OSError Excepion Raised !!!" %\
+                        (each_dir, each_file)
                 logging.error(log_message)
             except TypeError:
-                log_message = "%s/%s/%s -  TypeError Exception Raised !!!" %\
-                        (base_dir, each_dir, each_file)
+                log_message = "%s: %s -  TypeError Exception Raised !!!" %\
+                        (each_dir, each_file)
                 logging.error(log_message)
-            except Exception, the_err:
-                log_message = "%s/%s/%s - %s !!!" %\
-                        (base_dir, each_dir, each_file, str(the_err))
-                logging.error(log_message)
-
         if not need_delete:
-            log_message = "%s/%s -  No files to delete..." %\
-                        (base_dir, each_dir)
+            log_message = "%s -  No files to delete..." % each_dir
             if simulation_mode == 'Y':
-                print log_message
+                print(log_message)
             else:
                 logging.info(log_message)
 
@@ -115,28 +102,29 @@ def del_file_creation(base_dir, files_template, keep_days, simulation_mode, \
 def main():
     """
         read del_file.conf and call func to delete the files
-        - SIMULATION_MODE: Y (Simulation mode) \ N (Delete the files)
-        - RECURSIVE MODE: Y (Scan directory RECURSIVELY) \ N (Dont scan RECURSIVELY)
-        - METHOD: T (depends on timestamp signature in the file name) \ C (depends on file creation time)
-        - BASE_DIR = C:\PATH\TO\FILES (Windows) \ /PATH/TO/FILES (Linux)
-        - FILES_TEMPLATE = file_*.zip (look for files starting with 'file', ending with 'zip')
+        - SIMULATION_MODE: Y (Simulation mode)
+                           N (Delete the files)
+        - RECURSIVE MODE: Y (Scan directory RECURSIVELY)
+                          N (Dont scan RECURSIVELY)
+        - METHOD: T (depends on timestamp signature in the file name)
+                  C (depends on file creation time)
+        - BASE_DIR = C:\\PATH\\TO\\FILES (Windows) \\ /PATH/TO/FILES (Linux)
+        - FILES_TEMPLATE = file_*.zip (starting with 'file', ending with 'zip')
         - KEEP = 5 How many files to keep (Last 5 FILES or 5 DAYS)
     """
     if os.name == 'posix':
         ini_file = "/etc/del_files.conf"
     elif os.name == 'nt':
-        home_dir = os.environ['HOME']
-        ini_file = home_dir + "/del_files.conf"
+        ini_file = os.path.expanduser('~') + "\\del_files.conf"
     else:
-        print "Error: Unsupported platform"
-        exit()
+        print("Error: Unsupported platform")
+        sys.exit()
     try:
         with open(ini_file, "r") as ini_file:
             json_content = json.load(ini_file)
-    except:
-        print "Missing or illegal config file in /etc/del_files.conf"
-        exit()
-
+    except FileNotFoundError:
+        print("Missing or illegal config file: %s " % ini_file)
+        sys.exit()
     for each_config in json_content:
         log_file = each_config["LOG_FILE"]
         logging.basicConfig(filename=log_file, level=logging.INFO,\
